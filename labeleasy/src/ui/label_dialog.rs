@@ -136,7 +136,7 @@ impl LabelDialog {
 
     fn submit(&self) -> Outcome {
         Outcome::Submit(ShapeMeta {
-            label: self.label.text().trim().to_string(),
+            label: labeleasy_core::text::normalize_label(&self.label.text()),
             group_id: self.group_id.parse().ok(),
             description: self.description.text(),
             flags: self.flags.iter().cloned().collect(),

@@ -11,6 +11,7 @@ serde_json.workspace = true
 base64.workspace = true
 thiserror.workspace = true
 image.workspace = true
+unicode-normalization.workspace = true
 
 [dev-dependencies]
 tempfile = "3"

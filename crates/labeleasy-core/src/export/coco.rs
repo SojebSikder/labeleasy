@@ -99,7 +99,8 @@ impl Exporter for Coco {
             "categories": categories,
         });
         let path = out_dir.join("annotations.json");
-        let bytes = serde_json::to_vec_pretty(&doc).map_err(|e| Error::Other(e.to_string()))?;
+        let bytes =
+            crate::text::to_ascii_json_pretty(&doc).map_err(|e| Error::Other(e.to_string()))?;
         write(&path, bytes)?;
         Ok(summary)
     }

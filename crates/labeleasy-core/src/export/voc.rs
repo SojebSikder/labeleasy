@@ -38,7 +38,7 @@ impl Exporter for PascalVoc {
             let mut xml = String::new();
             let _ = write!(
                 xml,
-                "<annotation>\n  <folder>JPEGImages</folder>\n  <filename>{}</filename>\n  \
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<annotation>\n  <folder>JPEGImages</folder>\n  <filename>{}</filename>\n  \
                  <size>\n    <width>{}</width>\n    <height>{}</height>\n    <depth>3</depth>\n  </size>\n  \
                  <segmented>0</segmented>\n",
                 escape(&file_name),
@@ -46,10 +46,13 @@ impl Exporter for PascalVoc {
                 item.file.image_height
             );
             for shape in &item.file.shapes {
-                if !labels.contains(&shape.label) {
+                // the label list's spelling, so <name> matches labels.txt even
+                // when the shape's label was typed in another Unicode form
+                let Some(label) = labels.index_of(&shape.label).map(|i| &labels.as_slice()[i])
+                else {
                     summary.unknown_labels += 1;
                     continue;
-                }
+                };
                 let Some(b) = area_outline(shape).and_then(|o| Rect::bounding(&o)) else {
                     summary.skipped_shapes += 1;
                     continue;
@@ -59,7 +62,7 @@ impl Exporter for PascalVoc {
                     "  <object>\n    <name>{}</name>\n    <pose>Unspecified</pose>\n    <truncated>0</truncated>\n    \
                      <difficult>0</difficult>\n    <bndbox>\n      <xmin>{}</xmin>\n      <ymin>{}</ymin>\n      \
                      <xmax>{}</xmax>\n      <ymax>{}</ymax>\n    </bndbox>\n  </object>\n",
-                    escape(&shape.label),
+                    escape(label),
                     b.min.x.round() as i64,
                     b.min.y.round() as i64,
                     b.max.x.round() as i64,

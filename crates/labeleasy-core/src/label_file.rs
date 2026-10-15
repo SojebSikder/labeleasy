@@ -50,7 +50,9 @@ impl LabelFile {
 
     pub fn load(path: &Path) -> Result<Self> {
         let bytes = std::fs::read(path).map_err(|e| Error::io(path, e))?;
-        serde_json::from_slice(&bytes).map_err(|source| Error::Json {
+        // Windows editors may prepend a UTF-8 BOM, which serde_json rejects
+        let json = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(&bytes);
+        serde_json::from_slice(json).map_err(|source| Error::Json {
             path: path.to_path_buf(),
             source,
         })

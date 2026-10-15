@@ -1,6 +1,7 @@
 //! The label vocabulary of a session and the color each label is drawn in.
 
-use crate::{Error, Result};
+use crate::Result;
+use crate::text::normalize_label;
 use std::path::Path;
 
 /// 8-bit RGB.
@@ -53,8 +54,9 @@ impl LabelSet {
 
     /// reads a labelme-style `labels.txt`: one label per line, blank lines and
     /// `__ignore__` / `_background_` (labelme's reserved names) skipped.
+    /// UTF-8 (with or without BOM) and UTF-16 files are accepted.
     pub fn load_txt(path: &Path) -> Result<Self> {
-        let text = std::fs::read_to_string(path).map_err(|e| Error::io(path, e))?;
+        let text = crate::text::read(path)?;
         Ok(Self::from_iter(text.lines().map(str::trim).filter(|l| {
             !l.is_empty() && *l != "__ignore__" && *l != "_background_"
         })))
@@ -63,26 +65,34 @@ impl LabelSet {
     pub fn save_txt(&self, path: &Path) -> Result<()> {
         let mut text = self.labels.join("\n");
         text.push('\n');
-        std::fs::write(path, text).map_err(|e| Error::io(path, e))
+        std::fs::write(path, text).map_err(|e| crate::Error::io(path, e))
     }
 
-    /// adds `label` if new; returns its index. Labels are kept exactly as given
+    /// adds `label` if new; returns its index. Labels are stored normalized
+    /// ([`normalize_label`]), so differently encoded Bangla is one label.
     pub fn insert(&mut self, label: &str) -> usize {
         match self.index_of(label) {
             Some(i) => i,
             None => {
-                self.labels.push(label.to_string());
+                self.labels.push(normalize_label(label));
                 self.labels.len() - 1
             }
         }
     }
 
     pub fn remove(&mut self, label: &str) {
-        self.labels.retain(|l| l != label);
+        let label = normalize_label(label);
+        self.labels.retain(|l| *l != label);
     }
 
+    /// matches `label` in any Unicode form (shapes in label files keep the
+    /// encoding they were typed in).
     pub fn index_of(&self, label: &str) -> Option<usize> {
-        self.labels.iter().position(|l| l == label)
+        if let Some(i) = self.labels.iter().position(|l| l == label) {
+            return Some(i);
+        }
+        let label = normalize_label(label);
+        self.labels.iter().position(|l| *l == label)
     }
 
     pub fn contains(&self, label: &str) -> bool {

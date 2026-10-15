@@ -5,6 +5,7 @@ use super::{Exporter, Item, Summary, UniqueNames, area_outline, copy_image, crea
 use crate::Result;
 use crate::geometry::Rect;
 use crate::labels::LabelSet;
+use crate::text::yaml_quote;
 use std::fmt::Write as _;
 use std::path::Path;
 
@@ -98,10 +99,10 @@ impl Exporter for Yolo {
 
         let mut yaml = format!(
             "path: {}\ntrain: images\nval: images\nnames:\n",
-            out_dir.display()
+            yaml_quote(&out_dir.to_string_lossy())
         );
         for (i, label) in labels.iter().enumerate() {
-            let _ = writeln!(yaml, "  {i}: {label:?}");
+            let _ = writeln!(yaml, "  {i}: {}", yaml_quote(label));
         }
         write(&out_dir.join("data.yaml"), yaml)?;
         Ok(summary)
