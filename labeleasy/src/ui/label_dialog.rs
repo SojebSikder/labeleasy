@@ -2,7 +2,9 @@
 
 use crate::app::App;
 use crate::message::Message;
-use iced::widget::{Id, button, checkbox, column, container, row, scrollable, text, text_input};
+use iced::widget::{
+    Id, button, checkbox, column, container, row, scrollable, text, text_editor, text_input,
+};
 use iced::{Alignment, Element, Length, Task};
 use labeleasy_core::Shape;
 use labeleasy_core::document::ShapeMeta;
@@ -22,9 +24,9 @@ pub struct LabelDialog {
     /// the document (`App::doc_id`) the target belongs to; a dialog that
     /// outlives its document must not write into the next one.
     pub doc_id: u64,
-    label: String,
+    label: text_editor::Content,
     group_id: String,
-    description: String,
+    description: text_editor::Content,
     flags: Vec<(String, bool)>,
     pub error: Option<String>,
     /// the label was typed in (not just prefilled): only then does it
@@ -34,9 +36,9 @@ pub struct LabelDialog {
 
 #[derive(Debug, Clone)]
 pub enum LabelDialogMessage {
-    Label(String),
+    Label(text_editor::Action),
     GroupId(String),
-    Description(String),
+    Description(text_editor::Action),
     Flag(usize, bool),
     Pick(String),
     Submit,
@@ -49,22 +51,53 @@ pub enum Outcome {
     Cancel,
 }
 
-/// focuses (and selects) the label field.
+/// focuses the label field (its text is selected when the dialog opens).
 pub fn focus() -> Task<Message> {
-    Task::batch([
-        iced::widget::operation::focus(Id::new(LABEL_INPUT)),
-        iced::widget::operation::select_all(Id::new(LABEL_INPUT)),
-    ])
+    iced::widget::operation::focus(Id::new(LABEL_INPUT))
+}
+
+/// a single-line editor: Enter submits instead of breaking the line.
+fn single_line<'a>(
+    content: &'a text_editor::Content,
+    placeholder: &'a str,
+    on_action: impl Fn(text_editor::Action) -> Message + 'a,
+) -> text_editor::TextEditor<'a, iced::advanced::text::highlighter::PlainText, Message> {
+    text_editor(content)
+        .placeholder(placeholder)
+        .on_action(on_action)
+        .key_binding(|key| match key.key {
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::Enter) => Some(
+                text_editor::Binding::Custom(Message::LabelDialog(LabelDialogMessage::Submit)),
+            ),
+            _ => text_editor::Binding::from_key_press(key),
+        })
+        .padding(8)
+}
+
+/// applies `action`, keeping the content on one line (pastes can carry newlines).
+fn edit_line(content: &mut text_editor::Content, action: text_editor::Action) {
+    content.perform(action);
+    if content.line_count() > 1 {
+        let flat = content
+            .text()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        *content = text_editor::Content::with_text(&flat);
+        content.perform(text_editor::Action::Move(text_editor::Motion::DocumentEnd));
+    }
 }
 
 impl LabelDialog {
     pub fn new(target: LabelTarget, doc_id: u64, meta: ShapeMeta) -> Self {
+        let mut label = text_editor::Content::with_text(&meta.label);
+        label.perform(text_editor::Action::SelectAll);
         Self {
             target,
             doc_id,
-            label: meta.label,
+            label,
             group_id: meta.group_id.map(|g| g.to_string()).unwrap_or_default(),
-            description: meta.description,
+            description: text_editor::Content::with_text(&meta.description),
             flags: meta.flags.into_iter().collect(),
             error: None,
             typed: false,
@@ -73,24 +106,26 @@ impl LabelDialog {
 
     pub fn update(&mut self, msg: LabelDialogMessage) -> Outcome {
         match msg {
-            LabelDialogMessage::Label(v) => {
-                self.label = v;
-                self.typed = true;
-                self.error = None;
+            LabelDialogMessage::Label(action) => {
+                if action.is_edit() {
+                    self.typed = true;
+                    self.error = None;
+                }
+                edit_line(&mut self.label, action);
             }
             LabelDialogMessage::GroupId(v) => {
                 if v.is_empty() || v == "-" || v.parse::<i64>().is_ok() {
                     self.group_id = v;
                 }
             }
-            LabelDialogMessage::Description(v) => self.description = v,
+            LabelDialogMessage::Description(action) => edit_line(&mut self.description, action),
             LabelDialogMessage::Flag(i, v) => {
                 if let Some(flag) = self.flags.get_mut(i) {
                     flag.1 = v;
                 }
             }
             LabelDialogMessage::Pick(label) => {
-                self.label = label;
+                self.label = text_editor::Content::with_text(&label);
                 return self.submit();
             }
             LabelDialogMessage::Submit => return self.submit(),
@@ -101,9 +136,9 @@ impl LabelDialog {
 
     fn submit(&self) -> Outcome {
         Outcome::Submit(ShapeMeta {
-            label: self.label.trim().to_string(),
+            label: self.label.text().trim().to_string(),
             group_id: self.group_id.parse().ok(),
-            description: self.description.clone(),
+            description: self.description.text(),
             flags: self.flags.iter().cloned().collect(),
         })
     }
@@ -117,15 +152,14 @@ impl LabelDialog {
             LabelTarget::Existing(_) => "Edit shape".to_string(),
         };
 
-        let label_input = text_input("Label", &self.label)
-            .id(Id::new(LABEL_INPUT))
-            .on_input(move |v| msg(LabelDialogMessage::Label(v)))
-            .on_submit(msg(LabelDialogMessage::Submit))
-            .padding(8);
+        let label_input = single_line(&self.label, "Label", move |a| {
+            msg(LabelDialogMessage::Label(a))
+        })
+        .id(Id::new(LABEL_INPUT));
 
-        let suggestions = app
-            .labels
-            .suggest(if self.typed { &self.label } else { "" });
+        let typed = self.label.text();
+        let typed = typed.trim();
+        let suggestions = app.labels.suggest(if self.typed { typed } else { "" });
         let empty_hint = if suggestions.is_empty() {
             let hint = if app.labels.is_empty() {
                 "No labels yet: type one and press Enter"
@@ -137,7 +171,7 @@ impl LabelDialog {
             None
         };
         let mut list = column(suggestions.into_iter().take(MAX_SUGGESTIONS).map(|label| {
-            let selected = label == self.label.trim();
+            let selected = label == typed;
             button(
                 row![
                     style::swatch(crate::canvas::label_color(&app.labels, label), 10.0),
@@ -162,10 +196,10 @@ impl LabelDialog {
             .on_submit(msg(LabelDialogMessage::Submit))
             .padding(8)
             .width(Length::FillPortion(1));
-        let description_input = text_input("Description", &self.description)
-            .on_input(move |v| msg(LabelDialogMessage::Description(v)))
-            .on_submit(msg(LabelDialogMessage::Submit))
-            .padding(8)
+        let description_input =
+            container(single_line(&self.description, "Description", move |a| {
+                msg(LabelDialogMessage::Description(a))
+            }))
             .width(Length::FillPortion(3));
 
         let mut body = column![

@@ -208,7 +208,7 @@ impl App {
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_default();
                 let dirty = if doc.is_dirty() { " •" } else { "" };
-                format!("{name}{dirty} — {}", crate::APP_NAME)
+                format!("{name}{dirty} - {}", crate::APP_NAME)
             }
             _ => crate::APP_NAME.to_string(),
         }
