@@ -239,6 +239,14 @@ impl App {
         }
     }
 
+    /// frees the decoded-image cache once caching is turned off.
+    pub fn apply_cache_setting(&mut self) {
+        if !self.settings.cache_images {
+            self.cache.clear();
+            self.prefetching.clear();
+        }
+    }
+
     fn toggle_setting(&mut self, f: impl FnOnce(&mut Settings) -> bool, what: &str) {
         let on = f(&mut self.settings);
         self.persist_settings();
@@ -304,7 +312,7 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
         Message::Prefetched(path, result) => {
             app.prefetching.remove(&path);
             if let Ok(image) = result {
-                app.cache.insert(image);
+                files::cache_insert(app, image);
             }
             Task::none()
         }

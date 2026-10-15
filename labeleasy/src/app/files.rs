@@ -2,7 +2,7 @@
 
 use super::{App, Overlay};
 use crate::canvas::ViewMode;
-use crate::image_cache::{self, Loaded, blocking};
+use crate::image_cache::{self, Loaded, LoadedImage, blocking};
 use crate::message::Message;
 use iced::Task;
 use labeleasy_core::export::{self, Summary};
@@ -315,7 +315,7 @@ pub fn image_loaded(
     // a newer selection superseded this one (e.g. holding "D")
     if request != app.load_request {
         if let Ok(loaded) = result {
-            app.cache.insert(loaded.image);
+            cache_insert(app, loaded.image);
         }
         return Task::none();
     }
@@ -341,7 +341,6 @@ pub fn image_loaded(
     if matches!(app.overlay, Overlay::LabelDialog(_)) {
         app.overlay = Overlay::None;
     }
-    app.cache.insert(image.clone());
     doc.ensure_flags(app.settings.image_flags.iter().map(String::as_str));
     for shape in doc.shapes().iter().filter(|s| !s.label.is_empty()) {
         app.labels.insert(&shape.label);
@@ -351,28 +350,62 @@ pub fn image_loaded(
     }
 
     app.doc = Some(doc);
-    app.image = Some(image);
+    app.image = Some(image.clone());
+    cache_insert(app, image);
+
     app.doc_id += 1;
     app.selected.clear();
     app.hidden.clear();
     app.view = ViewMode::FitWindow;
     app.touch_canvas();
+
     let reset = app.shape_list.reset();
+
     Task::batch([reset, prefetch_neighbors(app)])
 }
 
-fn prefetch_neighbors(app: &mut App) -> Task<Message> {
+/// the images worth keeping decoded: the selected one and its neighbors in
+/// the file list (next ones first, as stepping forward is most common).
+fn cache_window(app: &App) -> Vec<PathBuf> {
     let Some(current) = app.current else {
-        return Task::none();
+        return Vec::new();
     };
     let Some(pos) = app.filtered.iter().position(|&i| i == current) else {
-        return Task::none();
+        return app
+            .dataset
+            .entries
+            .get(current)
+            .map(|e| vec![e.image.clone()])
+            .unwrap_or_default();
     };
-    let neighbors = [pos + 1, pos.wrapping_sub(1), pos + 2]
+    [pos, pos + 1, pos.wrapping_sub(1), pos + 2]
         .into_iter()
         .filter_map(|p| app.filtered.get(p))
         .filter_map(|&i| app.dataset.entries.get(i))
         .map(|e| e.image.clone())
+        .collect()
+}
+
+/// caches `image` if caching is on and it's near the selection, and drops
+/// whatever the selection has moved away from.
+pub fn cache_insert(app: &mut App, image: LoadedImage) {
+    if !app.settings.cache_images {
+        return;
+    }
+    let window = cache_window(app);
+    if window.contains(&image.path) {
+        app.cache.insert(image);
+    }
+    app.cache.retain(&window);
+}
+
+fn prefetch_neighbors(app: &mut App) -> Task<Message> {
+    if !app.settings.cache_images {
+        return Task::none();
+    }
+    let neighbors = cache_window(app)
+        .into_iter()
+        .skip(1)
         .filter(|path| {
             image_io::is_supported(path)
                 && !app.cache.contains(path)

@@ -24,6 +24,9 @@ pub struct Settings {
     pub validate_labels: bool,
     /// include subfolders when opening a folder.
     pub recursive_scan: bool,
+    /// keep the neighbors of the open image decoded, so stepping is instant.
+    /// Costs a few decoded images of memory. off for low-memory machines.
+    pub cache_images: bool,
 
     pub fill_opacity: f32,
     pub show_labels: bool,
@@ -53,6 +56,7 @@ impl Default for Settings {
             keep_previous: false,
             validate_labels: false,
             recursive_scan: false,
+            cache_images: true,
             fill_opacity: 0.25,
             show_labels: true,
             crosshair: true,
@@ -99,6 +103,7 @@ pub fn save(settings: &Settings) -> Result<(), String> {
     }
     let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
     let tmp = path.with_extension("json.tmp");
+
     std::fs::write(&tmp, json).map_err(|e| e.to_string())?;
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }

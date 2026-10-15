@@ -1,6 +1,6 @@
-//! Background image loading plus a byte-budgeted LRU of decoded images, so
-//! stepping through a folder shows neighbors instantly (they're prefetched)
-//! and iced keeps their GPU textures (the handle ids stay the same).
+//! Background image loading plus a small cache of decoded images: the open
+//! one and its neighbors, prefetched so stepping through a folder is instant.
+//! Images outside that window are dropped, so memory doesn't grow with history.
 
 use iced::widget::image::Handle;
 use labeleasy_core::document::Document;
@@ -9,8 +9,8 @@ use labeleasy_core::label_file::{LabelFile, label_path_for};
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 
-/// decoded RGBA kept around for quick navigation.
-const BUDGET_BYTES: usize = 768 * 1024 * 1024;
+/// upper bound on cached RGBA, for when even a few neighbors are huge.
+const BUDGET_BYTES: usize = 512 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
 pub struct LoadedImage {
@@ -48,6 +48,15 @@ impl ImageCache {
 
     pub fn contains(&self, path: &Path) -> bool {
         self.entries.iter().any(|e| e.path == path)
+    }
+
+    /// drops every image not in `keep`.
+    pub fn retain(&mut self, keep: &[PathBuf]) {
+        self.entries.retain(|e| keep.contains(&e.path));
+    }
+
+    pub fn clear(&mut self) {
+        self.entries.clear();
     }
 
     pub fn insert(&mut self, image: LoadedImage) {

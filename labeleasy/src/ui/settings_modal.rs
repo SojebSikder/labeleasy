@@ -19,13 +19,14 @@ pub enum Toggle {
     KeepPrevious,
     ValidateLabels,
     RecursiveScan,
+    CacheImages,
     ShowLabels,
     Crosshair,
     WheelZooms,
 }
 
 impl Toggle {
-    const ALL: [(Toggle, &'static str); 8] = [
+    const ALL: [(Toggle, &'static str); 9] = [
         (Toggle::AutoSave, "Save automatically when switching images"),
         (Toggle::SaveImageData, "Embed image data in label files"),
         (
@@ -36,6 +37,10 @@ impl Toggle {
         (
             Toggle::RecursiveScan,
             "Include subfolders when opening a folder",
+        ),
+        (
+            Toggle::CacheImages,
+            "Preload neighboring images (faster, uses more memory)",
         ),
         (Toggle::ShowLabels, "Show label tags on the canvas"),
         (Toggle::Crosshair, "Crosshair while drawing"),
@@ -49,6 +54,7 @@ impl Toggle {
             Toggle::KeepPrevious => &mut s.keep_previous,
             Toggle::ValidateLabels => &mut s.validate_labels,
             Toggle::RecursiveScan => &mut s.recursive_scan,
+            Toggle::CacheImages => &mut s.cache_images,
             Toggle::ShowLabels => &mut s.show_labels,
             Toggle::Crosshair => &mut s.crosshair,
             Toggle::WheelZooms => &mut s.wheel_zooms,
@@ -306,6 +312,7 @@ pub fn update(app: &mut App, message: SettingsMessage) -> Task<Message> {
             settings.last_dir = app.settings.last_dir.clone();
             settings.sidebar_width = app.settings.sidebar_width;
             app.settings = settings;
+            app.apply_cache_setting();
             app.persist_settings();
             crate::app::apply_theme(app);
         }
