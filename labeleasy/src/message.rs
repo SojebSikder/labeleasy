@@ -6,6 +6,7 @@ use iced::widget::scrollable::Viewport;
 use iced::window;
 use labeleasy_core::Dataset;
 use labeleasy_core::export::Summary;
+use labeleasy_core::import;
 use labeleasy_ui::widgets::DropdownMessage;
 use std::path::PathBuf;
 
@@ -25,6 +26,7 @@ pub enum Command {
     CloseFile,
     Quit,
     Export(usize),
+    Import(usize),
     LoadLabels,
     SaveLabels,
 
@@ -83,6 +85,9 @@ pub enum Message {
     FileListScrolled(Viewport),
     ExportPicked(usize, Option<PathBuf>),
     ExportFinished(Result<Summary, String>),
+    ImportPicked(usize, Option<PathBuf>),
+    /// carries the dataset opened for the import when none was open.
+    ImportFinished(Result<(Option<Dataset>, import::Summary), String>),
     LabelsFilePicked(Option<PathBuf>),
     LabelsFileSaveTo(Option<PathBuf>),
     /// carries the path confirmed, in case another image was opened meanwhile.

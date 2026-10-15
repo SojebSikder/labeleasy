@@ -8,6 +8,7 @@
 //! - [`image_io`]: decoding images (EXIF-oriented) into RGBA buffers.
 //! - [`labels`]: the label vocabulary and its stable colors.
 //! - [`export`]: COCO / YOLO / Pascal VOC exporters behind one trait.
+//! - [`import`]: the same formats read back into labelme files.
 //! - [`text`]: Unicode normalization, text decoding and escaping for non-Latin labels.
 
 pub mod dataset;
@@ -16,6 +17,7 @@ pub mod export;
 pub mod geometry;
 pub mod history;
 pub mod image_io;
+pub mod import;
 pub mod label_file;
 pub mod labels;
 pub mod shape;

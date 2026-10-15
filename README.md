@@ -6,7 +6,7 @@
 
 Labeleasy is a fast, native image annotation tool written in Rust.
 
-Very few things inspired from my other project **Rustrest**.
+Few things inspired from my other project [Rustrest](https://github.com/SojebSikder/rustrest).
 
 ![Labeleasy](screenshots/labeleasy.png)
 
@@ -22,7 +22,7 @@ Very few things inspired from my other project **Rustrest**.
   markers, "next unannotated", separate output folder, drag & drop, recent folders.
 - **labelme compatible**: same JSON schema (`version`, `shapes`, `imagePath`, `imageData`, ...),
   unknown keys preserved, optional embedded image data, opens `.json` files whose image is only embedded.
-- **Export**: COCO instance segmentation, YOLO detection, YOLO segmentation, Pascal VOC.
+- **Import/Export**: COCO instance segmentation, YOLO detection, YOLO segmentation, Pascal VOC.
 - **Themes**: Zed-compatible theme files, light/dark/system mode.
 
 ## Usage

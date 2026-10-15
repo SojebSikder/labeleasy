@@ -1,4 +1,4 @@
-//! Opening folders/files, navigating images, saving and exporting.
+//! Opening folders/files, navigating images, saving, importing and exporting.
 
 use super::{App, Overlay};
 use crate::canvas::ViewMode;
@@ -6,6 +6,7 @@ use crate::image_cache::{self, Loaded, blocking};
 use crate::message::Message;
 use iced::Task;
 use labeleasy_core::export::{self, Summary};
+use labeleasy_core::import::{self, Source};
 use labeleasy_core::{Dataset, LabelSet, image_io};
 use std::path::{Path, PathBuf};
 
@@ -156,7 +157,15 @@ pub fn open_path(app: &mut App, path: PathBuf, output_dir: Option<PathBuf>) -> T
         };
         Task::perform(
             blocking(move || {
-                Dataset::scan(&root, recursive, output_dir).map_err(|e| e.to_string())
+                // Dataset::scan(&root, recursive, output_dir).map_err(|e| e.to_string())
+                let dataset = Dataset::scan(&root, recursive, output_dir.clone())
+                    .map_err(|e| e.to_string())?;
+                // dataset layouts (YOLO's images/, VOC's JPEGImages/) keep
+                // the images in subfolders: look there before giving up
+                if dataset.is_empty() && !recursive {
+                    return Dataset::scan(&root, true, output_dir).map_err(|e| e.to_string());
+                }
+                Ok(dataset)
             }),
             move |result| Message::DatasetScanned(result, select.clone()),
         )
@@ -582,6 +591,139 @@ pub fn export_finished(app: &mut App, result: Result<Summary, String>) -> Task<M
         }
     }
     Task::none()
+}
+
+pub fn pick_import_source(app: &mut App, format: usize) -> Task<Message> {
+    let Some(importer) = import::all().into_iter().nth(format) else {
+        return Task::none();
+    };
+    let title = format!("Import {}", importer.name());
+    let picker = dialog(app).set_title(title);
+    let picked: std::pin::Pin<Box<dyn Future<Output = _> + Send>> = match importer.source() {
+        Source::File(extensions) => {
+            Box::pin(picker.add_filter(importer.name(), extensions).pick_file())
+        }
+        Source::Folder => Box::pin(picker.pick_folder()),
+    };
+
+    Task::perform(
+        async move { picked.await.map(|f| f.path().to_path_buf()) },
+        move |source| Message::ImportPicked(format, source),
+    )
+}
+
+pub fn import_picked(app: &mut App, format: usize, source: Option<PathBuf>) -> Task<Message> {
+    let Some(source) = source else {
+        return Task::none();
+    };
+    // the open image's edits go to disk first, so the import can't clobber them
+    if app.doc.as_ref().is_some_and(|d| d.is_dirty())
+        && let Err(e) = save_current(app)
+    {
+        app.toasts.error(e);
+        return Task::none();
+    }
+    let open = (!app.dataset.is_empty()).then(|| app.dataset.clone());
+    let output_dir = app.dataset.output_dir.clone();
+    app.toasts.info("Importing…");
+    Task::perform(
+        blocking(move || {
+            let importer = import::all()
+                .into_iter()
+                .nth(format)
+                .ok_or("unknown import format")?;
+            let parsed = importer.read(&source).map_err(|e| e.to_string())?;
+            if parsed.records.is_empty() {
+                return Err(format!("No annotations found in {}", source.display()));
+            }
+            // nothing open: the dataset being imported holds its own images
+            let (dataset, opened) = match open {
+                Some(dataset) => (dataset, false),
+                None => {
+                    let root = import::dataset_root(&source);
+                    let dataset =
+                        Dataset::scan(&root, true, output_dir).map_err(|e| e.to_string())?;
+                    if dataset.is_empty() {
+                        return Err(format!(
+                            "No images found in {}; open the image folder first",
+                            root.display()
+                        ));
+                    }
+                    (dataset, true)
+                }
+            };
+            let summary = import::apply(parsed, &dataset).map_err(|e| e.to_string())?;
+            Ok((opened.then_some(dataset), summary))
+        }),
+        Message::ImportFinished,
+    )
+}
+
+pub fn import_finished(
+    app: &mut App,
+    result: Result<(Option<Dataset>, import::Summary), String>,
+) -> Task<Message> {
+    let (opened, s) = match result {
+        Ok(result) => result,
+        Err(e) => {
+            app.toasts.error(e);
+            return Task::none();
+        }
+    };
+    for label in &s.labels {
+        app.labels.insert(label);
+    }
+
+    let mut text = format!(
+        "Imported {} annotations into {} images",
+        s.annotations, s.images
+    );
+    if s.skipped_existing > 0 {
+        text.push_str(&format!(
+            " ({} already labelled, left as is)",
+            s.skipped_existing
+        ));
+    }
+    if s.images > 0 {
+        app.toasts.success(text);
+    } else {
+        app.toasts.info(text);
+    }
+    if s.unmatched > 0 {
+        app.toasts.error(format!(
+            "{} annotated images aren't in the open folder",
+            s.unmatched
+        ));
+    }
+    for warning in s.warnings.iter().take(3) {
+        app.toasts.error(warning.clone());
+    }
+
+    if let Some(mut dataset) = opened {
+        // scanned before the import wrote its label files
+        for entry in &mut dataset.entries {
+            entry.annotated = entry.label.is_file();
+        }
+        return dataset_scanned(app, Ok(dataset), None);
+    }
+    for entry in &mut app.dataset.entries {
+        entry.annotated = entry.label.is_file();
+    }
+
+    // the open image may just have received a label file: show it
+    let reload = app
+        .doc
+        .as_ref()
+        .is_some_and(|d| !d.has_label_file() && !d.is_dirty() && d.label_path.is_file());
+    match doc_index(app).filter(|_| reload) {
+        Some(index) => {
+            let previous = std::mem::take(&mut app.previous_shapes);
+            let task = begin_load(app, index);
+            app.previous_shapes = previous;
+            task
+        }
+        None => Task::none(),
+    }
 }
 
 pub fn labels_file_picked(app: &mut App, path: Option<PathBuf>) -> Task<Message> {

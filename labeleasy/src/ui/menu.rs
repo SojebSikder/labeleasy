@@ -60,17 +60,28 @@ pub fn groups(app: &App) -> Vec<MenuGroup<Command>> {
         item_if(has_doc, "Delete Label File", Command::DeleteLabelFile),
         item_if(has_doc, "Close Image", Command::CloseFile),
         DropdownItem::separator(),
-    ]);
-
-    for (i, exporter) in labeleasy_core::export::all().iter().enumerate() {
-        file.push(item_if(
-            has_dataset,
-            format!("Export {}…", exporter.name()),
-            Command::Export(i),
-        ));
-    }
-
-    file.extend([
+        DropdownItem::submenu(
+            "Import",
+            labeleasy_core::import::all()
+                .iter()
+                .enumerate()
+                .map(|(i, importer)| item(format!("{}…", importer.name()), Command::Import(i)))
+                .collect(),
+        ),
+        DropdownItem::submenu(
+            "Export",
+            labeleasy_core::export::all()
+                .iter()
+                .enumerate()
+                .map(|(i, exporter)| {
+                    item_if(
+                        has_dataset,
+                        format!("{}…", exporter.name()),
+                        Command::Export(i),
+                    )
+                })
+                .collect(),
+        ),
         DropdownItem::separator(),
         DropdownItem::new(check(s.auto_save, "Auto Save"), Command::ToggleAutoSave),
         DropdownItem::new(

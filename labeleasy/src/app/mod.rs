@@ -1,6 +1,4 @@
-//! Application state and the top-level `update`. Behavior is split by
-//! concern: `files` (datasets, loading, saving, export), `edit` (shapes and the canvas), `theme`.
-
+//! Application state and the top-level `update`.
 mod edit;
 mod files;
 mod theme;
@@ -321,6 +319,8 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
         }
         Message::ExportPicked(format, dir) => files::export_picked(app, format, dir),
         Message::ExportFinished(result) => files::export_finished(app, result),
+        Message::ImportPicked(format, source) => files::import_picked(app, format, source),
+        Message::ImportFinished(result) => files::import_finished(app, result),
         Message::LabelsFilePicked(path) => files::labels_file_picked(app, path),
         Message::LabelsFileSaveTo(path) => files::labels_file_save_to(app, path),
         Message::DeleteLabelFileConfirmed(path) => files::delete_label_file_confirmed(app, path),
@@ -468,6 +468,7 @@ fn run_command(app: &mut App, command: Command) -> Task<Message> {
         }
         Command::Quit => files::guard_unsaved(app, Message::Command(command), |_| iced::exit()),
         Command::Export(format) => files::pick_export_dir(app, format),
+        Command::Import(format) => files::pick_import_source(app, format),
         Command::LoadLabels => files::pick_labels_file(app),
         Command::SaveLabels => files::pick_labels_save(app),
 
