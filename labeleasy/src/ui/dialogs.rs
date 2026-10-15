@@ -75,7 +75,7 @@ pub fn about<'a>() -> Element<'a, Message> {
     let body = column![
         text(crate::APP_NAME).size(20),
         text(format!("Version {}", crate::APP_VERSION)).size(13),
-        style::hint("Image polygon annotation, compatible with labelme's JSON format."),
+        style::hint("Image annotation"),
         style::hint(format!("Commit {}", crate::COMMIT_SHA)),
         row![
             Space::new().width(Length::Fill),

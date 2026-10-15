@@ -8,7 +8,7 @@ Labeleasy is a fast, native image annotation tool written in Rust.
 
 Few things inspired from my other project [Rustrest](https://github.com/SojebSikder/rustrest).
 
-![Labeleasy](screenshots/labeleasy.png)
+![Labeleasy](screenshots/screenshot1.jpg)
 
 ## Features
 

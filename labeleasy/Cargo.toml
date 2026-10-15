@@ -1,6 +1,6 @@
 [package]
 name = "labeleasy"
-description = "Fast image polygon annotation (labelme-compatible)"
+description = "Image annotation"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
