@@ -1,7 +1,7 @@
 use crate::app::App;
 use crate::canvas::Mode;
-use crate::message::Message;
-use iced::widget::{Space, container, row, text};
+use crate::message::{Command, Message};
+use iced::widget::{Space, button, container, row, text};
 use iced::{Alignment, Element, Length};
 use labeleasy_ui::widgets::style;
 
@@ -42,6 +42,18 @@ pub fn view(app: &App) -> Element<'_, Message> {
     }
     if app.settings.auto_save {
         items = items.push(text("auto-save").size(12).color(colors.success));
+    }
+    if let (Some(info), false) = (&app.update.available, app.update.downloading()) {
+        items = items.push(
+            button(
+                text(format!("Update to v{}", info.version))
+                    .size(12)
+                    .color(colors.text_accent),
+            )
+            .style(button::text)
+            .padding(0)
+            .on_press(Message::Command(Command::InstallUpdate)),
+        );
     }
 
     container(items)

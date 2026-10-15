@@ -73,7 +73,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
         root = modal(root, content, on_blur);
     }
 
-    let mut top = vec![root, app.toasts.view(Message::DismissToast)];
+    let mut top = vec![root, app.toasts.view(Message::DismissToast, Message::ToastAction)];
     if !app.maximized {
         top.push(window_resize_handles(Message::WindowResizeDrag));
         top.push(window_border());

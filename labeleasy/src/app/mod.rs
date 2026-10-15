@@ -2,6 +2,7 @@
 mod edit;
 mod files;
 mod theme;
+mod update;
 
 pub use edit::image_size;
 pub use theme::{apply as apply_theme, reload as reload_themes, user_themes_dir};
@@ -51,6 +52,7 @@ pub struct App {
     pub menu: DropdownMenuState,
     pub toasts: ToastManager,
     pub overlay: Overlay,
+    pub update: update::UpdateState,
 
     pub dataset: Dataset,
     pub file_filter: String,
@@ -142,6 +144,7 @@ pub fn init() -> (App, Task<Message>) {
         menu: DropdownMenuState::new(),
         toasts: ToastManager::new(),
         overlay: Overlay::None,
+        update: update::UpdateState::default(),
         dataset: Dataset::default(),
         file_filter: String::new(),
         filtered: Vec::new(),
@@ -192,6 +195,7 @@ pub fn init() -> (App, Task<Message>) {
         }),
         iced::system::theme().map(Message::SystemThemeChanged),
         startup,
+        update::check(&mut app, true),
     ]);
     (app, tasks)
 }
@@ -424,10 +428,15 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
             update(app, *then)
         }
 
+        Message::UpdateChecked(silent, result) => update::checked(app, silent, result),
+        Message::UpdateProgress(progress) => update::progress(app, progress),
+        Message::UpdateInstalled(result) => update::installed(app, result),
+
         Message::DismissToast(id) => {
             app.toasts.dismiss(id);
             Task::none()
         }
+        Message::ToastAction(id) => update::toast_action(app, id),
         Message::Tick => {
             app.toasts.tick();
             Task::none()
@@ -568,6 +577,8 @@ fn run_command(app: &mut App, command: Command) -> Task<Message> {
             app.overlay = Overlay::Shortcuts;
             Task::none()
         }
+        Command::CheckForUpdate => update::check(app, false),
+        Command::InstallUpdate => update::install(app),
         Command::About => {
             app.overlay = Overlay::About;
             Task::none()

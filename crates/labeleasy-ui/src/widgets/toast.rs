@@ -3,7 +3,7 @@
 //! Hosts call [`ToastManager::tick`] from a timer subscription that only runs
 //! while [`ToastManager::is_empty`] is false, so idle apps don't wake up.
 
-use iced::widget::{button, column, container, row, text};
+use iced::widget::{button, column, container, progress_bar, row, text};
 use iced::{Alignment, Border, Element, Length};
 use std::time::{Duration, Instant};
 
@@ -23,6 +23,12 @@ pub struct Toast {
     pub message: String,
     pub status: ToastStatus,
     pub expires_at: Instant,
+    /// label of a button reporting the toast's id through `on_action`.
+    pub action: Option<String>,
+    /// 0.0..=1.0, drawn as a bar under the message.
+    pub progress: Option<f32>,
+    /// stays until dismissed.
+    pub sticky: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -43,7 +49,8 @@ impl ToastManager {
     /// drops expired toasts.
     pub fn tick(&mut self) {
         let now = Instant::now();
-        self.toasts.retain(|toast| toast.expires_at > now);
+        self.toasts
+            .retain(|toast| toast.sticky || toast.expires_at > now);
     }
 
     pub fn show(&mut self, message: impl Into<String>, status: ToastStatus) -> usize {
@@ -71,8 +78,47 @@ impl ToastManager {
             message: message.into(),
             status,
             expires_at: Instant::now() + duration,
+            action: None,
+            progress: None,
+            sticky: false,
         });
         id
+    }
+
+    /// a toast with a button; pressing it emits `on_action(id)`.
+    pub fn show_with_action(
+        &mut self,
+        message: impl Into<String>,
+        status: ToastStatus,
+        duration: Duration,
+        action: impl Into<String>,
+    ) -> usize {
+        let id = self.show_for(message, status, duration);
+        if let Some(toast) = self.get_mut(id) {
+            toast.action = Some(action.into());
+        }
+        id
+    }
+
+    /// a toast that stays until [`ToastManager::dismiss`]ed.
+    pub fn show_sticky(&mut self, message: impl Into<String>, status: ToastStatus) -> usize {
+        let id = self.show_for(message, status, Duration::ZERO);
+        if let Some(toast) = self.get_mut(id) {
+            toast.sticky = true;
+        }
+        id
+    }
+
+    /// updates a toast's message and its progress bar (0.0..=1.0).
+    pub fn set_progress(&mut self, id: usize, message: impl Into<String>, progress: f32) {
+        if let Some(toast) = self.get_mut(id) {
+            toast.message = message.into();
+            toast.progress = Some(progress.clamp(0.0, 1.0));
+        }
+    }
+
+    fn get_mut(&mut self, id: usize) -> Option<&mut Toast> {
+        self.toasts.iter_mut().find(|toast| toast.id == id)
     }
 
     pub fn success(&mut self, message: impl Into<String>) -> usize {
@@ -95,6 +141,7 @@ impl ToastManager {
     pub fn view<'a, Message: Clone + 'a>(
         &'a self,
         on_dismiss: impl Fn(usize) -> Message + 'a,
+        on_action: impl Fn(usize) -> Message + 'a,
     ) -> Element<'a, Message> {
         let colors = crate::theme::colors();
         let mut list = column![].spacing(10).align_x(Alignment::End);
@@ -105,15 +152,27 @@ impl ToastManager {
                 ToastStatus::Info => colors.info,
             };
             let (background, foreground) = (colors.elevated_surface_background, colors.text);
-            let content = row![
-                text(&toast.message).size(13).width(Length::Fill),
+            let mut line = row![text(&toast.message).size(13).width(Length::Fill)]
+                .spacing(10)
+                .align_y(Alignment::Center);
+            if let Some(label) = &toast.action {
+                line = line.push(
+                    button(text(label).size(12))
+                        .style(crate::widgets::style::primary_button)
+                        .padding([3, 8])
+                        .on_press(on_action(toast.id)),
+                );
+            }
+            line = line.push(
                 button(text("✕").size(12))
                     .style(button::text)
                     .padding([2, 6])
                     .on_press(on_dismiss(toast.id)),
-            ]
-            .spacing(10)
-            .align_y(Alignment::Center);
+            );
+            let mut content = column![line].spacing(8);
+            if let Some(progress) = toast.progress {
+                content = content.push(progress_bar(0.0..=1.0, progress).girth(4));
+            }
 
             list = list.push(container(content).width(320).padding([10, 12]).style(
                 move |_theme| container::Style {

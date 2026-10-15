@@ -144,6 +144,7 @@ pub fn groups(app: &App) -> Vec<MenuGroup<Command>> {
 
     let help = vec![
         item("Keyboard Shortcuts", Command::ShowShortcuts),
+        DropdownItem::new("Check for Updates", Command::CheckForUpdate),
         DropdownItem::new("About", Command::About),
     ];
 

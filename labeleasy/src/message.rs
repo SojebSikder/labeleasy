@@ -2,6 +2,7 @@ use crate::canvas::{CanvasEvent, Mode};
 use crate::image_cache::{Loaded, LoadedImage};
 use crate::ui::label_dialog::LabelDialogMessage;
 use crate::ui::settings_modal::SettingsMessage;
+use crate::updater::{UpdateInfo, UpdateProgress};
 use iced::widget::scrollable::Viewport;
 use iced::window;
 use labeleasy_core::Dataset;
@@ -55,6 +56,8 @@ pub enum Command {
     ToggleKeepPrevious,
     OpenSettings,
     ShowShortcuts,
+    CheckForUpdate,
+    InstallUpdate,
     About,
 }
 
@@ -115,7 +118,14 @@ pub enum Message {
     ConfirmSave,
     ConfirmDiscard,
 
+    // self-update
+    /// `silent` (startup) checks only report a found update.
+    UpdateChecked(bool, Result<Option<UpdateInfo>, String>),
+    UpdateProgress(UpdateProgress),
+    UpdateInstalled(Result<String, String>),
+
     DismissToast(usize),
+    ToastAction(usize),
     Tick,
 }
 

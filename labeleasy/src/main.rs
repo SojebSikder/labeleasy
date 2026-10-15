@@ -7,6 +7,7 @@ mod message;
 mod settings;
 mod shortcuts;
 mod ui;
+mod updater;
 
 use app::App;
 use iced::{Event, Subscription, event, mouse, window};
