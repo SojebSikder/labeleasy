@@ -63,7 +63,7 @@ from Settings.
 
 ### Name
 
-`Rustrest` is a trademark of [Sojeb Sikder](https://sojebsikder.me).
+`Labeleasy` is a trademark of [Sojeb Sikder](https://sojebsikder.me).
 
 ### Logo
 
