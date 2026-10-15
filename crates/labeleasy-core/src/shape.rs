@@ -7,7 +7,8 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ShapeType {
-    /// labelme treats a missing `shape_type` as a polygon.
+    /// labelme treats a missing `shape_type` as a polygon; see [`Shape`]'s
+    /// deserializer for the 1- and 2-point exceptions.
     #[default]
     Polygon,
     Rectangle,
@@ -87,6 +88,7 @@ impl std::fmt::Display for ShapeType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(from = "RawShape")]
 pub struct Shape {
     pub label: String,
     pub points: Vec<Point>,
@@ -94,7 +96,6 @@ pub struct Shape {
     pub group_id: Option<i64>,
     #[serde(default, deserialize_with = "null_as_default")]
     pub description: String,
-    #[serde(default)]
     pub shape_type: ShapeType,
     #[serde(default, deserialize_with = "null_as_default")]
     pub flags: BTreeMap<String, bool>,
@@ -103,6 +104,47 @@ pub struct Shape {
     /// keys written by other tools, preserved on save.
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+/// [`Shape`] as read from disk, before a missing `shape_type` is inferred.
+#[derive(Deserialize)]
+struct RawShape {
+    label: String,
+    points: Vec<Point>,
+    #[serde(default)]
+    group_id: Option<i64>,
+    #[serde(default, deserialize_with = "null_as_default")]
+    description: String,
+    #[serde(default)]
+    shape_type: Option<ShapeType>,
+    #[serde(default, deserialize_with = "null_as_default")]
+    flags: BTreeMap<String, bool>,
+    #[serde(default)]
+    mask: Option<String>,
+    #[serde(flatten)]
+    extra: serde_json::Map<String, serde_json::Value>,
+}
+
+impl From<RawShape> for Shape {
+    fn from(raw: RawShape) -> Self {
+        // labelme defaults to a polygon, but a polygon needs 3+ points: files
+        // that omit the type with 2 points mean a bbox.
+        let shape_type = raw.shape_type.unwrap_or(match raw.points.len() {
+            1 => ShapeType::Point,
+            2 => ShapeType::Rectangle,
+            _ => ShapeType::Polygon,
+        });
+        Self {
+            label: raw.label,
+            points: raw.points,
+            group_id: raw.group_id,
+            description: raw.description,
+            shape_type,
+            flags: raw.flags,
+            mask: raw.mask,
+            extra: raw.extra,
+        }
+    }
 }
 
 pub(crate) fn null_as_default<'de, D, T>(d: D) -> Result<T, D::Error>
