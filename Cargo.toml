@@ -1,0 +1,45 @@
+[workspace]
+members = ["labeleasy", "crates/labeleasy-core", "crates/labeleasy-ui"]
+default-members = ["labeleasy"]
+resolver = "2"
+
+[workspace.package]
+# bump this to release a new version; every crate inherits it so cargo-dist
+# builds and publishes them together.
+version = "0.1.0"
+edition = "2024"
+license-file = "LICENSE"
+repository = "https://github.com/SojebSikder/labeleasy"
+
+[workspace.dependencies]
+labeleasy-core = { path = "crates/labeleasy-core" }
+labeleasy-ui = { path = "crates/labeleasy-ui" }
+
+iced = { version = "0.14", features = ["tokio", "image", "advanced", "canvas"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "tiff", "webp", "gif"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+base64 = "0.22"
+thiserror = "2"
+dirs = "6"
+rfd = "0.17"
+tokio = { version = "1", features = ["rt", "macros", "time"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+# decoding big images in debug builds is painfully slow otherwise
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
