@@ -128,6 +128,7 @@ pub fn open_label_dialog_for(app: &mut App, index: usize) -> Task<Message> {
     for (flag, value) in default_shape_flags(app) {
         meta.flags.entry(flag).or_insert(value);
     }
+
     app.overlay = Overlay::LabelDialog(LabelDialog::new(
         LabelTarget::Existing(index),
         app.doc_id,
